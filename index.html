@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Misión ODS</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600&display=swap">
+<style>
+/* ===== 1. ESTILOS (solo apariencia, nada de lógica) ===== */
+/* Colores como variables: tema claro por defecto */
+:root{--bg:#f2f5f3;--card:#fff;--txt:#12231b;--mut:#566a5d;--line:#d3ded6;--main:#1f8a4c;--bad:#d1344a;
+box-sizing:border-box;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+/* Tema oscuro: se activa si el dispositivo lo usa */
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1b14;--card:#172a20;--txt:#eaf4ec;--mut:#9db3a4;--line:#2b4435}}
+:root[data-theme="dark"]{--bg:#0e1b14;--card:#172a20;--txt:#eaf4ec;--mut:#9db3a4;--line:#2b4435}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:18px/1.5 Fredoka,"Trebuchet MS",system-ui,sans-serif}
+#app{max-width:680px;margin:0 auto;padding:18px}
+h1{font-size:46px;line-height:1.05;margin:.3em 0 .2em}
+h2{margin:.3em 0}
+small{color:var(--mut)}
+/* Tira con los 17 colores oficiales: es la imagen del juego */
+.tira{display:flex;gap:3px;height:16px}
+.tira i{flex:1;border-radius:4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;margin:12px 0;overflow:hidden}
+.cuerpo{padding:18px}
+/* Banda superior de cada reto: toma el color del ODS que se trabaja */
+.banda{display:flex;align-items:center;gap:14px;padding:12px 18px;color:#fff;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+.banda b{font-size:48px;line-height:1}
+input{width:100%;padding:12px;margin:8px 0;border:2px solid var(--line);border-radius:12px;background:var(--card);color:var(--txt);font:inherit}
+.btn{display:block;width:100%;padding:14px;margin:8px 0;border:2px solid var(--main);border-radius:14px;background:var(--main);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+.sec,.op{background:var(--card);color:var(--txt);border-color:var(--line)}
+.op{text-align:left;font-weight:400}
+.op:disabled{color:var(--txt);opacity:1;cursor:default}
+.op.ok{border-color:var(--main);background:rgba(31,138,76,.2)}
+.op.mal{border-color:var(--bad);background:rgba(209,52,74,.18)}
+button:focus-visible,input:focus-visible{outline:3px solid var(--main);outline-offset:2px}
+.hud{display:flex;justify-content:space-between;align-items:center;font-weight:600}
+.mini{border:0;background:var(--card);color:var(--txt);border-radius:10px;padding:6px 12px;font-size:18px;cursor:pointer}
+.barra{height:10px;background:var(--line);border-radius:9px;overflow:hidden;margin-top:8px}
+.barra i{display:block;height:100%;background:var(--main)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.ods{color:#fff;border-radius:12px;padding:10px;font-size:15px;font-weight:600;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+.ods b{display:block;font-size:26px}
+.ins{display:inline-flex;width:42px;height:42px;border-radius:50%;align-items:center;justify-content:center;color:#fff;font-weight:600;margin:3px;text-shadow:0 1px 2px rgba(0,0,0,.4)}
+/* Mensaje de retroalimentación: borde verde si acertó, rojo si falló */
+.fb{padding:12px 14px;border-radius:12px;margin-top:10px;background:var(--bg);border-left:6px solid var(--main)}
+.fb.mal{border-left-color:var(--bad)}
+.velo{position:fixed;inset:0;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;padding:16px}
+.velo .card{width:100%;max-width:400px}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+/* ===== 2. DATOS (solo contenido educativo; para añadir retos basta con agregar objetos a RETOS) ===== */
+
+// Los 17 ODS: [nombre, color oficial]. La posición + 1 es el número del ODS.
+const ODS = [
+["Fin de la pobreza","#E5243B"],["Hambre cero","#DDA63A"],["Salud y bienestar","#4C9F38"],
+["Educación de calidad","#C5192D"],["Igualdad de género","#FF3A21"],["Agua limpia y saneamiento","#26BDE2"],
+["Energía asequible y no contaminante","#FCC30B"],["Trabajo decente y crecimiento económico","#A21942"],
+["Industria, innovación e infraestructura","#FD6925"],["Reducción de las desigualdades","#DD1367"],
+["Ciudades y comunidades sostenibles","#FD9D24"],["Producción y consumo responsables","#BF8B2E"],
+["Acción por el clima","#3F7E44"],["Vida submarina","#0A97D9"],["Vida de ecosistemas terrestres","#56C02B"],
+["Paz, justicia e instituciones sólidas","#00689D"],["Alianzas para lograr los objetivos","#19486A"]];
+
+// Cada reto: t=título, o=n.º de ODS, d=dificultad (0 fácil, 1 medio, 2 difícil),
+// p=situación, r=opciones, c=posición de la opción correcta, e=mensaje educativo
+const RETOS = [
+{t:"El grifo abierto",o:6,d:0,p:"Te estás cepillando los dientes. ¿Qué haces con el grifo?",
+ r:["Lo dejo abierto todo el tiempo","Lo cierro mientras me cepillo","Lo abro al máximo para terminar rápido"],c:1,
+ e:"Cerrar el grifo ahorra varios litros de agua cada vez. Cuidar el agua es la base del ODS 6."},
+{t:"Camino a la universidad",o:13,d:0,p:"Tu universidad queda a 2 km de tu casa. ¿Cómo vas para emitir menos gases contaminantes?",
+ r:["En un carro particular","En un taxi","Caminando o en bicicleta"],c:2,
+ e:"Caminar o pedalear no emite gases de efecto invernadero y además cuida tu salud. Eso es acción por el clima (ODS 13)."},
+{t:"Día de mercado",o:12,d:0,p:"Vas a hacer mercado. ¿Qué opción genera menos residuos?",
+ r:["Una bolsa plástica nueva en cada compra","Llevar mi propia bolsa reutilizable","Empacar cada fruta en su propia bolsa"],c:1,
+ e:"Reutilizar evita residuos desde el origen. El ODS 12 busca producir y consumir de forma responsable."},
+{t:"Hogar eficiente",o:7,d:1,p:"En tu casa quieren gastar menos energía y contaminar menos. ¿Qué ayuda más?",
+ r:["Cambiar a bombillas LED y apagar lo que no uso","Dejar los aparatos en modo espera","Usar más aparatos eléctricos al tiempo"],c:0,
+ e:"Las bombillas LED gastan mucho menos que las incandescentes, y apagar lo que no usas ahorra aún más (ODS 7)."},
+{t:"Día de playa",o:14,d:1,p:"Terminas de comer en la playa. ¿Qué haces con tu basura?",
+ r:["La entierro en la arena","La dejo: el mar se la lleva","La guardo y la llevo hasta una caneca"],c:2,
+ e:"Buena parte de la contaminación plástica del mar viene de la tierra. Llevarte tu basura protege la vida submarina (ODS 14)."},
+{t:"Libros para todos",o:4,d:1,p:"En tu barrio hay niños sin acceso a libros. ¿Qué acción apoya mejor una educación de calidad?",
+ r:["Esperar a que alguien más lo resuelva","Organizar una donación o intercambio de libros","Guardar mis libros sin usar"],c:1,
+ e:"La educación de calidad necesita acceso a recursos y apoyo de la comunidad. Las pequeñas acciones suman (ODS 4)."},
+{t:"Comida que sobra",o:2,d:2,p:"En tu casa sobra comida casi todos los días. ¿Cuál es la mejor decisión?",
+ r:["Botarla y cocinar más mañana","Comprar más para tener siempre de sobra","Planificar las compras, guardar sobras y compartir excedentes"],c:2,
+ e:"Se desperdicia una gran parte de los alimentos mientras muchas personas pasan hambre. Planificar y compartir acerca al hambre cero (ODS 2)."},
+{t:"El humedal",o:15,d:2,p:"Un vecino quiere ampliar su cultivo talando un humedal. ¿Qué alternativa equilibra producir y proteger?",
+ r:["Talar: la comida es lo primero","Cultivar mejor las tierras ya usadas y proteger el humedal","Prohibir todo cultivo en la zona"],c:1,
+ e:"Los humedales regulan el agua y albergan biodiversidad. Se puede producir alimentos usando mejor la tierra ya intervenida (ODS 15)."}
+];
+const PUNTOS = [10,20,30];                    // puntos según la dificultad
+const NIVEL = ["Fácil","Medio","Difícil"];    // nombre de cada dificultad
+
+/* ===== 3. MODELO (las clases del diagrama de clases del PDF; aquí vive la lógica del juego) ===== */
+
+// Respuesta: una opción posible dentro de un reto
+class Respuesta{
+ constructor(id,texto,correcta){this.id=id;this.texto=texto;this.correcta=correcta;} // guarda sus datos
+ seleccionar(){return this.correcta;}   // al elegirla, informa si era la correcta
+}
+
+// Reto: una situación con sus respuestas
+class Reto{
+ constructor(id,d){                                  // d = un objeto de la lista RETOS
+  this.id=id; this.titulo=d.t; this.descripcion=d.p; // copiamos los datos del reto
+  this.dificultad=d.d; this.ods=d.o; this.explicacion=d.e;
+  this.respuestas=d.r.map((txt,i)=>new Respuesta(i,txt,i===d.c)) // crea una Respuesta por opción
+                     .sort(()=>Math.random()-.5);    // las desordena para que la correcta cambie de lugar
+ }
+ mostrar(){return this;}                             // la Vista se encarga de dibujarlo
+ evaluar(i){return this.respuestas[i].seleccionar();} // true si la opción i es correcta
+}
+
+// Partida: el estado de un juego en curso
+class Partida{
+ constructor(){
+  this.id=Date.now(); this.estado="inicial";         // estados: inicial, jugando, pausada, finalizada
+  this.puntuacion=0; this.progreso=0; this.vidas=3;  // puntos, % de avance y vidas
+  this.indice=0; this.elegida=null; this.aciertos=[]; // reto actual, opción elegida y ODS aprendidos
+  this.retos=RETOS.map((d,i)=>new Reto(i,d));        // convierte los datos en objetos Reto
+ }
+ iniciar(){this.estado="jugando";}   pausar(){this.estado="pausada";}
+ continuar(){this.estado="jugando";} finalizar(){this.estado="finalizada";}
+ get retoActual(){return this.retos[this.indice];}   // el reto que se está jugando
+ avanzar(){                                          // pasa al siguiente reto
+  this.elegida=null; this.indice++;
+  return this.vidas>0 && this.indice<this.retos.length; // false = se acabó la partida
+ }
+}
+
+// Jugador: quien juega
+class Jugador{
+ constructor(nombre){this.id=1;this.nombre=nombre||"Jugador/a";this.progreso=0;this.puntuacion=0;this.partida=null;}
+ iniciarPartida(){this.partida=new Partida();this.partida.iniciar();} // crea y arranca una partida
+ pausarPartida(){this.partida.pausar();}
+ responder(i){                                       // procesa la respuesta elegida
+  const p=this.partida, r=p.retoActual;
+  p.elegida=i;                                       // recordamos qué opción eligió
+  if(r.evaluar(i)){p.puntuacion+=PUNTOS[r.dificultad];p.aciertos.push(r.ods);} // acierto: suma puntos
+  else p.vidas--;                                    // error: pierde una vida
+  p.progreso=Math.round((p.indice+1)/p.retos.length*100); // actualiza el avance en %
+  this.puntuacion=p.puntuacion; this.progreso=p.progreso;
+ }
+}
+
+/* ===== 4. VISTA (solo dibuja pantallas, no toma decisiones) ===== */
+const app=document.getElementById("app");                                   // contenedor donde se dibuja todo
+const esc=s=>String(s).replace(/[&<>"']/g,c=>"&#"+c.charCodeAt(0)+";");     // evita que el texto escrito se ejecute como HTML
+const insignia=n=>`<span class="ins" style="background:${ODS[n-1][1]}" title="${ODS[n-1][0]}">${n}</span>`; // círculo de color de un ODS
+
+const Vista={
+ menu(){app.innerHTML=`<div class="tira">${ODS.map(o=>`<i style="background:${o[1]}"></i>`).join("")}</div>
+  <h1>Misión ODS</h1>
+  <p>Toma decisiones del día a día y descubre cómo cada una se conecta con los Objetivos de Desarrollo Sostenible. Equivocarse también enseña.</p>
+  <input placeholder="Tu nombre (opcional)" maxlength="20" value="${esc(Juego.nombre)}" oninput="Juego.nombre=this.value">
+  <button class="btn" onclick="Juego.jugar()">Jugar</button>
+  <button class="btn sec" onclick="Vista.instrucciones()">Instrucciones</button>
+  <button class="btn sec" onclick="Vista.info()">Conocer los 17 ODS</button>
+  <small>Mejor puntaje en este dispositivo: ${Juego.record}</small>`;},
+
+ instrucciones(){app.innerHTML=`<div class="card"><div class="cuerpo"><h2>Cómo se juega</h2><ol>
+  <li>Lee la situación de cada reto.</li>
+  <li>Elige la decisión más sostenible.</li>
+  <li>Acertar suma puntos. Fallar te quita una vida ❤️ (tienes 3).</li>
+  <li>Después de cada respuesta aprenderás el porqué.</li>
+  <li>Completa los ${RETOS.length} retos y gana tu reconocimiento.</li></ol>
+  <button class="btn" onclick="Vista.menu()">Volver al menú</button></div></div>`;},
+
+ info(){app.innerHTML=`<h2>Los 17 ODS</h2><div class="grid">${
+  ODS.map((o,i)=>`<div class="ods" style="background:${o[1]}"><b>${i+1}</b>${o[0]}</div>`).join("")}</div>
+  <button class="btn" onclick="Vista.menu()">Volver al menú</button>`;},
+
+ reto(){                                             // pantalla de juego
+  const p=Juego.jugador.partida, r=p.retoActual, e=p.elegida, hecho=e!==null; // hecho = ya respondió
+  const ok=hecho&&r.respuestas[e].correcta;          // ¿acertó?
+  const botones=r.respuestas.map((a,i)=>{            // un botón por cada respuesta
+   const c=!hecho?"":a.correcta?"ok":i===e?"mal":""; // verde la correcta, rojo la elegida si falló
+   return `<button class="btn op ${c}" ${hecho?"disabled":""} onclick="Juego.responder(${i})">${esc(a.texto)}</button>`;}).join("");
+  const fin=p.vidas<=0||p.indice+1>=p.retos.length;  // ¿este es el último paso?
+  const fb=hecho?`<div class="fb ${ok?"":"mal"}"><b>${ok?"¡Correcto! +"+PUNTOS[r.dificultad]+" puntos":"No era esa. La correcta está en verde."}</b>
+   <p>💡 ${esc(r.explicacion)}</p>
+   <button class="btn" onclick="Juego.siguiente()">${fin?"Ver resultados":"Siguiente reto"}</button></div>`:"";
+  app.innerHTML=`<div class="hud"><span>⭐ ${p.puntuacion}</span><span>${"❤️".repeat(p.vidas)||"💔"}</span>
+   <span>Reto ${p.indice+1} de ${p.retos.length}</span><button class="mini" onclick="Juego.pausar()" aria-label="Pausa">⏸</button></div>
+   <div class="barra"><i style="width:${p.progreso}%"></i></div>
+   <div class="card"><div class="banda" style="background:${ODS[r.ods-1][1]}"><b>${r.ods}</b><span>${ODS[r.ods-1][0]}</span></div>
+   <div class="cuerpo"><small>Nivel ${NIVEL[r.dificultad].toLowerCase()}, vale ${PUNTOS[r.dificultad]} puntos</small>
+   <h2>${esc(r.titulo)}</h2><p>${esc(r.descripcion)}</p>${botones}${fb}</div></div>`;},
+
+ pausa(){document.body.insertAdjacentHTML("beforeend",`<div class="velo" id="velo"><div class="card"><div class="cuerpo">
+  <h2>Juego en pausa</h2>
+  <button class="btn" onclick="Juego.continuar()">Continuar</button>
+  <button class="btn sec" onclick="Juego.jugar()">Reiniciar</button>
+  <button class="btn sec" onclick="Juego.menu()">Menú principal</button></div></div></div>`);},
+ quitarPausa(){const v=document.getElementById("velo"); if(v)v.remove();}, // cierra la ventana de pausa
+
+ final(){                                            // pantalla de resultados
+  const p=Juego.jugador.partida, max=RETOS.reduce((s,r)=>s+PUNTOS[r.d],0), x=p.puntuacion/max; // x = fracción de puntos logrados
+  const m=x>=.8?["🏆","Guardián del planeta"]:x>=.5?["🌱","Agente de cambio"]:["🌿","Aprendiz sostenible"]; // reconocimiento
+  app.innerHTML=`<div class="card"><div class="cuerpo"><div style="font-size:56px">${m[0]}</div>
+   <h1 style="font-size:34px">${p.vidas>0?"¡Misión cumplida!":"Te quedaste sin vidas"}</h1>
+   <h2>${esc(Juego.jugador.nombre)}, eres ${m[1]}</h2>
+   <p>⭐ ${p.puntuacion} de ${max} puntos. Acertaste ${p.aciertos.length} de ${RETOS.length} retos.</p>
+   <p>${p.aciertos.length?"ODS que ya dominas:":"Aprender es equivocarse y volver a intentarlo. ¡Inténtalo otra vez!"}</p>
+   <div>${p.aciertos.map(n=>insignia(n)).join("")}</div>
+   <p><small>Mejor puntaje en este dispositivo: ${Juego.record}</small></p>
+   <button class="btn" onclick="Juego.jugar()">Jugar de nuevo</button>
+   <button class="btn sec" onclick="Juego.menu()">Menú principal</button></div></div>`;}
+};
+
+/* ===== 5. CONTROLADOR (conecta los botones con el modelo y la vista) ===== */
+const Juego={
+ nombre:"", jugador:null,                            // datos de la sesión actual
+ record:(()=>{try{return +localStorage.getItem("odsRecord")||0}catch(e){return 0}})(), // mejor puntaje guardado (si el navegador lo permite)
+ jugar(){Vista.quitarPausa();this.jugador=new Jugador(this.nombre);this.jugador.iniciarPartida();Vista.reto();}, // nueva partida
+ responder(i){const p=this.jugador.partida;
+  if(p.estado!=="jugando"||p.elegida!==null)return; // ignora clics repetidos
+  this.jugador.responder(i);Vista.reto();},
+ siguiente(){const p=this.jugador.partida;
+  if(p.avanzar()){Vista.reto();return;}             // quedan retos y vidas: continúa
+  p.finalizar();                                     // si no, la partida termina
+  if(p.puntuacion>this.record){                      // ¿nuevo récord? lo guardamos
+   this.record=p.puntuacion;try{localStorage.setItem("odsRecord",this.record)}catch(e){}}
+  Vista.final();},
+ pausar(){this.jugador.pausarPartida();Vista.pausa();},
+ continuar(){this.jugador.partida.continuar();Vista.quitarPausa();},
+ menu(){Vista.quitarPausa();Vista.menu();}
+};
+
+Vista.menu(); // arranque: muestra el menú principal
+</script>
+</body>
+</html>
